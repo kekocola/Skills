@@ -1,0 +1,4 @@
+interface:
+  display_name: "Configure ET6 MMO Startup"
+  short_description: "Generate ET6 MMO startup Excel configs."
+  default_prompt: "Use $configure-et6-mmo-startup to create a new ET6 MMO startup config set from my server list and process deployment plan."
