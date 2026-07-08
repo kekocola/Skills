@@ -49,6 +49,21 @@ Use row 4 keys as the source of truth for column mapping. Preserve row 3 labels 
 - Game-zone service rows should share coherent `InnerZoneIndex`, `BackendZoneId`, open/close timestamps, and display names for the same logical zone.
 - `StartBalanceConfig@s.xlsx.SceneType` should reference scene types that need load-balance routing.
 
+## Standard Placement Rules
+
+Use these placement rules when deriving rows from a role-based server list unless the request says otherwise. Do not tie the rules to a specific template or output directory name.
+
+| Server role | Machine table rule | Process / scene placement |
+| --- | --- | --- |
+| Routing server | `InnerIP=<internal>`, `OuterIP=<internal>`, `OutRealIP=<public if any else internal>`, `EnableGameZone=0` | `RoutingNodeServer` processes live here; `RouterManager` lives on the first routing server by default |
+| Zone server | `InnerIP=<internal>`, `OuterIP=<internal>`, `OutRealIP=<internal>`, `EnableGameZone=1` | All `30000+` per-zone game services live here; zone rows use this machine as `LinkMachineId` |
+| Load-balance node server | `InnerIP=<internal>`, `OuterIP=<internal>`, `OutRealIP=<internal>`, `EnableGameZone=0` | `LogicNodeServer`, `GateNodeServer`, `BattleNodeServer`, and `MapNodeServer` live here |
+| Global server | `InnerIP=<internal>`, `OuterIP=<internal>`, `OutRealIP=<internal>`, `EnableGameZone=0` | All global services live here, including `RealmBalanceServer`, `BattleBalanceServer`, and `MapNodeBalanceServer` |
+
+Important distinction: `RealmBalanceServer` is the gateway/logic load-balance manager and must be placed on the global server under these conventions. Do not place it on the load-balance node server. Likewise, `BattleBalanceServer` and `MapNodeBalanceServer` are global-machine services, while `BattleNodeServer` and `MapNodeServer` are load-balance-node-machine services.
+
+For every physical server, add one `MachineControlServer` row in the system-control sheet and one matching process row. Use a deterministic scene/process ID such as `12500 + MachineId` when it stays in the documented control-service range and does not collide.
+
 ## Input Normalization
 
 Normalize user-provided deployment input into these structures before editing:
@@ -100,6 +115,8 @@ If the user supplies a higher-level server list, derive rows by following the ne
 Run equivalent checks before final delivery:
 
 - Duplicate IDs in each workbook.
+- `StartMachineConfig@s.xlsx` has `OuterIP == InnerIP`; only zone machines have `EnableGameZone=1`; `OutRealIP` is public IP when provided, otherwise internal IP.
+- `RealmBalanceServer`, `BattleBalanceServer`, and `MapNodeBalanceServer` resolve through `StartProcessConfig@s.xlsx` to the global machine.
 - Missing machine references from processes.
 - Missing process references from scenes.
 - Port collisions by `(MachineId, InnerPort)` and by externally exposed `OuterPort`.

@@ -1,6 +1,6 @@
 ---
 name: configure-et6-mmo-startup
-description: Configure ET6 C# MMO server startup Excel files from server lists, machine/IP data, zone/database settings, process deployment plans, scene topology, merge rules, and load-balance strategy. Use when Codex needs to create, clone, or update Start*Config@s.xlsx startup configuration workbooks for an ET6 framework MMO server.
+description: Configure ET6 C# MMO server startup Excel files from server lists, machine/IP data, zone/database settings, process deployment plans, scene topology, merge rules, and load-balance strategy, including reusable placement conventions for routing, global, zone, and load-balance-node servers. Use when Codex needs to create, clone, or update Start*Config@s.xlsx startup configuration workbooks for an ET6 framework MMO server.
 ---
 
 # Configure ET6 MMO Startup
@@ -16,9 +16,13 @@ Use this skill to produce a complete startup configuration set from a user-provi
 - `StartBalanceConfig@s.xlsx`
 - `StartMergeServerConfig@s.xlsx`
 
-If the user does not provide a template directory, first check the current working directory. For this installation, the known template directory is `D:\Server2\pokeworld_light\Server\StartConfig\Release-light`.
+If the user does not provide a template directory, first check the current working directory for the six expected startup workbooks. Do not hardcode a previous template or output directory name; deployment folders vary between tasks.
 
 Before editing any workbook, read `references/startup-config-schema.md`.
+
+## Reusable Script
+
+Use `scripts/generate_startup_config.py` when the request fits the standard role-based deployment model. Provide it a JSON spec with machine roles, zones, node counts, and database settings. Inspect and patch the generated output when the user provides custom service placement, nonstandard ID ranges, or merge/load-balance behavior not represented by the script. The script is a reusable accelerator, not a substitute for workbook inspection and validation.
 
 ## Workflow
 
@@ -40,6 +44,17 @@ Before editing any workbook, read `references/startup-config-schema.md`.
 
 Prefer copying and adapting existing rows with the same `SceneType` rather than inventing new values. Preserve numeric identifiers as numbers unless the template stores that column as text for a reason.
 
+## Standard Deployment Conventions
+
+When the user provides a high-level server list like routing machines, zone machines, load-balance machines, and global machines, apply these defaults unless the user overrides them:
+
+- `StartMachineConfig@s.xlsx`: set `InnerIP` and `OuterIP` to the machine's internal IP. Set `OutRealIP` to the public IP when present, otherwise to the internal IP. Set `EnableGameZone=1` only for physical machines that deploy game-zone services; set it to `0` for routing, load-balance, and global-only machines.
+- Routing machines: deploy `RoutingNodeServer` processes on routing machines, with externally exposed `OuterPort` values. Deploy the singleton `RouterManager` on the first routing machine unless the user names a different host.
+- Global machines: deploy all global services on the global machine. Treat `RealmBalanceServer` (gateway and logic load balance manager), `BattleBalanceServer`, and `MapNodeBalanceServer` as global-machine services, not load-balance-node-machine services.
+- Load-balance machines: deploy node services such as `LogicNodeServer`, `GateNodeServer`, `BattleNodeServer`, and `MapNodeServer` on the load-balance machine.
+- Zone machines: deploy all per-zone game services for requested zones on the zone machine and keep `LinkMachineId` aligned with the zone machine.
+- Machine control: create one `MachineControlServer` scene and process for every physical server, with `LinkMachineId` equal to that physical machine ID.
+
 ## Generation Rules
 
 - Maintain deterministic ID allocation. Respect the template ranges documented in `references/startup-config-schema.md`.
@@ -59,6 +74,8 @@ Before finalizing:
 - Confirm every `StartProcessConfig@s.xlsx` `MachineId` exists in `StartMachineConfig@s.xlsx`.
 - Confirm IDs are unique in each workbook and scene IDs are unique across all scene sheets.
 - Confirm required ports do not collide on the same machine.
+- Confirm `RealmBalanceServer`, `BattleBalanceServer`, and `MapNodeBalanceServer` processes are assigned to the global machine when using the standard placement conventions.
+- Confirm only zone-service machines have `EnableGameZone=1`, and `OuterIP` matches `InnerIP` in `StartMachineConfig@s.xlsx`.
 - Confirm database connection values and credentials are filled for every required zone.
 - Open or inspect the resulting `.xlsx` files to verify schema rows and formatting were preserved.
 
